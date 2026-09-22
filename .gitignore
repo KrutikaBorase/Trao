@@ -1,0 +1,9 @@
+node_modules
+.next
+.env
+kits.json
+cases.json
+.DS_Store
+kits-check.json
+kits-final.json
+data/*.json

@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: ai-interview-prep-api
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node backend/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: SESSION_SECRET
+        value: replace-with-a-long-random-string
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: FRONTEND_ORIGIN
+        value: https://ai-interview-prep-web.onrender.com
+      - key: NEXT_PUBLIC_API_URL
+        value: https://ai-interview-prep-api.onrender.com
+
+  - type: web
+    name: ai-interview-prep-web
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npx next start -p 10000
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: NEXT_PUBLIC_API_URL
+        value: https://ai-interview-prep-api.onrender.com
+      - key: SESSION_SECRET
+        value: replace-with-a-long-random-string

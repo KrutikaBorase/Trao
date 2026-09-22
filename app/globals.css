@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --ink: #f5f1e8;
+  --muted: #a6a39a;
+  --paper: #121716;
+  --paper-raised: #1a211f;
+  --line: rgba(226, 232, 220, 0.13);
+  --mint: #b7e4c7;
+  --coral: #f3a78c;
+}
+
+html {
+  background: #0a0f0e;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 8% 4%, rgba(183, 228, 199, 0.12), transparent 28rem),
+    radial-gradient(circle at 92% 12%, rgba(243, 167, 140, 0.1), transparent 24rem),
+    #0a0f0e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+main.bg-slate-950 {
+  position: relative;
+  isolation: isolate;
+  background: transparent !important;
+}
+
+main.bg-slate-950::before {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(226, 232, 220, 0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(226, 232, 220, 0.025) 1px, transparent 1px);
+  background-size: 44px 44px;
+  content: "";
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+}
+
+main.bg-slate-950 .bg-slate-900 {
+  border-color: var(--line);
+  background: linear-gradient(145deg, rgba(26, 33, 31, 0.95), rgba(15, 21, 20, 0.94));
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.18);
+}
+
+main.bg-slate-950 .bg-slate-950 {
+  background: rgba(7, 12, 11, 0.68);
+}
+
+main.bg-slate-950 input,
+main.bg-slate-950 textarea {
+  border-color: var(--line);
+  color: var(--ink);
+  outline: none;
+}
+
+main.bg-slate-950 input:focus,
+main.bg-slate-950 textarea:focus {
+  border-color: var(--mint);
+  box-shadow: 0 0 0 3px rgba(183, 228, 199, 0.12);
+}
+
+main.bg-slate-950 h1,
+main.bg-slate-950 h2 {
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 640px) {
+  main.bg-slate-950 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
