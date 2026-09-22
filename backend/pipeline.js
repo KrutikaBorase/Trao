@@ -18,21 +18,34 @@ export function extractRequirementsFromJD(jd) {
   }
 
   const phrases = text
-    .split(/\n|\.|;|,|\//)
+    .split(/\r?\n|[.!?;]+|\s+[•*-]\s+/)
     .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, 20);
+    .map((line) => line.replace(/^[-*•\d.)]+\s*/, '').trim())
+    .filter((line) => line.length >= 4)
+    .slice(0, 40);
+
+  const technicalTerms = /\b(?:[a-z][a-z0-9]+(?:\.js|\.net)|api|apis|sdk|sql|nosql|ci\/cd|devops|cloud|data|security|testing|observability|reliability|architecture|infrastructure|platform|frontend|backend|full[- ]stack|machine learning|artificial intelligence|distributed systems|system design|microservices|event[- ]driven|containerization|kubernetes|terraform|graphql|typescript|javascript|python|java|kotlin|scala|swift|rust|c\+\+|c#|go|ruby|php|react|vue|angular|node(?:\.js)?|docker|aws|azure|gcp|kafka|spark|postgres(?:ql)?|mysql|mongodb|redis|elasticsearch|linux|git)\b/i;
+  const acronym = /\b[A-Z]{2,}[A-Za-z0-9+#.-]*\b/;
+  const requirementLanguage = /\b(?:required|required qualifications?|must(?: have| be)?|need(?:s|ed)?|essential|minimum|preferred|nice to have|bonus|plus|experience with|experience in|proficien(?:t|cy) in|familiar(?:ity)? with|knowledge of|ability to|responsible for|you will|we are looking for|strong|proven|hands[- ]on|years? of)\b/i;
+  const behaviouralLanguage = /\b(?:mentor|mentoring|lead|leadership|communicat|collaborat|stakeholder|teamwork|cross[- ]functional|coach|manage|ownership|culture|feedback|negotiat|presentation)\w*/i;
 
   const requirements = [];
   for (const phrase of phrases) {
-    const match = /\b(\d+\+?\s*years?|strong|expert|solid|experience|mentoring|design|leadership|backend|frontend|react|node|aws|python|sql|go|kubernetes|system\s+design|distributed\s+systems|api|microservices|mentoring|debugging)/i.exec(phrase);
-    if (!match) continue;
+    const hasEvidence = requirementLanguage.test(phrase) || technicalTerms.test(phrase) || acronym.test(phrase) || /\b\d+\+?\s*years?\b/i.test(phrase) || behaviouralLanguage.test(phrase);
+    if (!hasEvidence) continue;
+
+    const cleaned = phrase.replace(/^(?:we are looking for|the ideal candidate has|responsibilities include)\s*:??\s*/i, '').trim();
+    if (cleaned.length < 4) continue;
+
+    const isNice = /\b(?:preferred|nice to have|bonus|plus|optional|ideally)\b/i.test(phrase);
     const requirement = {
       id: `r${requirements.length + 1}`,
-      text: phrase.length > 140 ? phrase.slice(0, 140) : phrase,
-      kind: /mentor|leadership|communication|stakeholder|collaboration|culture|behavior|behaviour/i.test(phrase) ? 'behavioural' : /system|design|distributed|architecture|backend|api|microservices/i.test(phrase) ? 'technical' : 'technical',
-      priority: /must|required|minimum|strongly|plus|experience/i.test(phrase) ? 'must' : 'nice',
+      text: cleaned.length > 180 ? cleaned.slice(0, 180) : cleaned,
+      kind: behaviouralLanguage.test(phrase) ? 'behavioural' : /domain|industry|market|fintech|healthcare|retail|education/i.test(phrase) ? 'domain' : 'technical',
+      priority: isNice ? 'nice' : 'must',
     };
+
+    if (requirements.some((existing) => existing.text.toLowerCase() === requirement.text.toLowerCase())) continue;
     requirements.push(requirement);
   }
 

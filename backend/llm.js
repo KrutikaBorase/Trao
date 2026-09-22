@@ -1,4 +1,4 @@
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 function extractJson(text) {
   const fenced = String(text || '').match(/```json\s*([\s\S]*?)```/i);

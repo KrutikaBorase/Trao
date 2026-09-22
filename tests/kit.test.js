@@ -4,6 +4,7 @@ import { allocateSchedule } from '../lib/schedule.js';
 import { findUncoveredRequirements, validateKitStructure } from '../lib/validate.js';
 import { buildPracticeQueue, reorderQuestions, updateQuestionState } from '../lib/builder.js';
 import { createSessionToken, verifySessionToken } from '../lib/session.js';
+import { extractRequirementsFromJD } from '../backend/pipeline.js';
 
 const requirements = [
   { id: 'r1', text: '5+ years of React', priority: 'must', kind: 'technical' },
@@ -78,4 +79,27 @@ test('createSessionToken and verifySessionToken round-trip a valid user session'
   assert.ok(token.length > 20);
   const session = verifySessionToken(token, secret);
   assert.deepEqual(session, { id: 'u-1', email: 'demo@example.com' });
+});
+
+test('extractRequirementsFromJD preserves unfamiliar technical requirements from unseen postings', () => {
+  const extracted = extractRequirementsFromJD(`
+    Required qualifications: 4+ years building TypeScript services with GraphQL, Kafka, and Terraform.
+    You will own observability and coach cross-functional partners.
+    Preferred: experience with Rust and WebAssembly.
+  `);
+
+  const text = extracted.map((requirement) => requirement.text.toLowerCase()).join(' ');
+  assert.match(text, /typescript/);
+  assert.match(text, /graphql/);
+  assert.match(text, /kafka/);
+  assert.match(text, /terraform/);
+  assert.match(text, /observability/);
+  assert.ok(extracted.some((requirement) => requirement.priority === 'nice' && /rust/i.test(requirement.text)));
+});
+
+test('extractRequirementsFromJD stays honest for a thin description', () => {
+  const extracted = extractRequirementsFromJD('Two line stub');
+  assert.equal(extracted.length, 1);
+  assert.equal(extracted[0].priority, 'nice');
+  assert.match(extracted[0].text, /No concrete requirements/i);
 });
