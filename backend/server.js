@@ -1,6 +1,4 @@
 import 'dotenv/config';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -8,14 +6,11 @@ import bcrypt from 'bcryptjs';
 import { buildKitFromCase } from './pipeline.js';
 import { createSessionToken, verifySessionToken } from '../lib/session.js';
 import { validateKitStructure } from '../lib/validate.js';
+import { loadStores, saveKits, saveUsers } from './store.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
 const SESSION_SECRET = process.env.SESSION_SECRET || 'development-only-session-secret';
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-const KITS_FILE = path.join(DATA_DIR, 'kits.json');
-
 let users = new Map();
 let kitsByUser = new Map();
 
@@ -23,33 +18,14 @@ if (!process.env.SESSION_SECRET && process.env.NODE_ENV === 'production') {
   throw new Error('SESSION_SECRET must be configured in production');
 }
 
-async function ensureJsonFile(filePath, fallback) {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  try {
-    const raw = await fs.readFile(filePath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : fallback;
-  } catch {
-    await fs.writeFile(filePath, JSON.stringify(fallback, null, 2));
-    return fallback;
-  }
-}
-
-async function saveUsers() {
-  const serialized = Object.fromEntries([...users.entries()].map(([id, user]) => [id, { ...user, password: user.password || '' }]));
-  await fs.writeFile(USERS_FILE, JSON.stringify(serialized, null, 2));
-}
-
-async function saveKits() {
-  const serialized = Object.fromEntries([...kitsByUser.entries()].map(([userId, items]) => [userId, items]));
-  await fs.writeFile(KITS_FILE, JSON.stringify(serialized, null, 2));
-}
-
 async function hydrateStores() {
-  const persistedUsers = await ensureJsonFile(USERS_FILE, {
-    'demo-user': { email: 'demo@example.com', password: 'password123' },
-  });
-  users = new Map(Object.entries(persistedUsers));
+  const stores = await loadStores();
+  users = stores.users;
+  kitsByUser = stores.kitsByUser;
+
+  if (!users.size) {
+    users.set('demo-user', { email: 'demo@example.com', password: await bcrypt.hash('password123', 12) });
+  }
 
   for (const [userId, user] of users.entries()) {
     if (user.password && !user.password.startsWith('$2')) {
@@ -58,15 +34,8 @@ async function hydrateStores() {
     }
   }
 
-  const persistedKits = await ensureJsonFile(KITS_FILE, {});
-  kitsByUser = new Map(Object.entries(persistedKits));
-
-  if (!users.has('demo-user')) {
-    users.set('demo-user', { email: 'demo@example.com', password: await bcrypt.hash('password123', 12) });
-    await saveUsers();
-  }
-
-  await saveUsers();
+  await saveUsers(users);
+  return stores.durable;
 }
 
 function getCookieOptions() {
@@ -126,7 +95,7 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(400).json({ message: 'Password must be at least 8 characters.' });
   }
   users.set(userId, { email: normalizedEmail, password: await bcrypt.hash(String(password), 12) });
-  await saveUsers();
+  await saveUsers(users);
 
   const token = createSessionToken({ id: userId, email: normalizedEmail }, SESSION_SECRET, 1000 * 60 * 60 * 8);
   res.cookie('session', token, getCookieOptions());
@@ -220,9 +189,9 @@ app.post('/api/kits/generate', async (req, res) => {
 });
 
 async function startServer() {
-  await hydrateStores();
+  const durable = await hydrateStores();
   app.listen(PORT, () => {
-    console.log(`Backend listening on http://localhost:${PORT}`);
+    console.log(`Backend listening on http://localhost:${PORT} (${durable ? 'mongodb' : 'local file'} persistence)`);
   });
 }
 

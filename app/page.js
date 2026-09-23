@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { buildPracticeQueue, reorderQuestions } from '../lib/builder.js';
+import { allocateSchedule } from '../lib/schedule.js';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const demoForm = {
@@ -24,6 +25,7 @@ export default function HomePage() {
   const [error, setError] = useState('');
   const [practiceIndex, setPracticeIndex] = useState(0);
   const [confidenceMap, setConfidenceMap] = useState({});
+  const [showPracticeAnswer, setShowPracticeAnswer] = useState(false);
 
   const selectedKit = useMemo(
     () => kits.find((kit) => kit.id === selectedKitId) || kits[0] || null,
@@ -49,6 +51,7 @@ export default function HomePage() {
   useEffect(() => {
     setPracticeIndex(0);
     setConfidenceMap(selectedKit?.kit?.practice?.confidence || {});
+    setShowPracticeAnswer(false);
   }, [selectedKitId]);
 
   async function fetchKits() {
@@ -215,6 +218,21 @@ export default function HomePage() {
     }));
   }
 
+  function updateCompanyBrief(field, value) {
+    setKits((current) => current.map((entry) => entry.id !== selectedKit?.id ? entry : {
+      ...entry,
+      kit: { ...entry.kit, company_brief: { ...entry.kit.company_brief, [field]: value } },
+    }));
+  }
+
+  function regenerateSchedule() {
+    if (!selectedKit?.kit) return;
+    setKits((current) => current.map((entry) => entry.id !== selectedKit.id ? entry : {
+      ...entry,
+      kit: { ...entry.kit, schedule: allocateSchedule(entry.kit.role.requirements, entry.kit.schedule.days_available, entry.kit.questions.map((question) => question.id), entry.kit.questions) },
+    }));
+  }
+
   function deleteQuestion(questionId) {
     setKits((current) => current.map((entry) => entry.id !== selectedKit?.id ? entry : {
       ...entry,
@@ -320,6 +338,7 @@ export default function HomePage() {
     if (!selectedCard) return;
     const nextConfidence = { ...confidenceMap, [selectedCard.id]: value };
     setConfidenceMap(nextConfidence);
+    setShowPracticeAnswer(false);
     setKits((current) => current.map((entry) => entry.id !== selectedKit?.id ? entry : { ...entry, kit: { ...entry.kit, practice: { ...(entry.kit.practice || {}), confidence: nextConfidence } } }));
     setPracticeIndex((idx) => {
       const nextIndex = idx + 1;
@@ -482,11 +501,11 @@ export default function HomePage() {
                       Open company URL
                     </a>
                   </div>
-                  <p className="mt-4 text-slate-300">{selectedKit.kit.company_brief.summary}</p>
+                  <textarea value={selectedKit.kit.company_brief.summary} onChange={(event) => updateCompanyBrief('summary', event.target.value)} rows={3} className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-300" />
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <div className="rounded-xl bg-slate-950 p-4">
                       <p className="text-xs uppercase tracking-[0.2em] text-slate-400">What they do</p>
-                      <p className="mt-2 text-slate-200">{selectedKit.kit.company_brief.what_they_do}</p>
+                      <textarea value={selectedKit.kit.company_brief.what_they_do} onChange={(event) => updateCompanyBrief('what_they_do', event.target.value)} rows={3} className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200" />
                     </div>
                     <div className="rounded-xl bg-slate-950 p-4">
                       <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Sources</p>
@@ -564,6 +583,9 @@ export default function HomePage() {
                           rows={3}
                           className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2"
                         />
+                        <select value={question.category} onChange={(event) => updateQuestion(question.id, 'category', event.target.value)} className="mt-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200">
+                          {['technical', 'behavioural', 'company-fit'].map((category) => <option key={category} value={category}>{category}</option>)}
+                        </select>
                         <textarea
                           value={question.answer_outline}
                           onChange={(event) => updateQuestion(question.id, 'answer_outline', event.target.value)}
@@ -610,10 +632,7 @@ export default function HomePage() {
                     <div className="mt-4 space-y-4 rounded-2xl border border-slate-800 bg-slate-950 p-5">
                       <p className="text-xs uppercase tracking-[0.25em] text-cyan-300">Queue item {practiceIndex + 1} / {practiceCards.length}</p>
                       <p className="text-lg font-semibold text-slate-100">{selectedCard.front}</p>
-                      <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 text-slate-300">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Answer prompt</p>
-                        <p className="mt-2">{selectedCard.back}</p>
-                      </div>
+                      {showPracticeAnswer ? <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 text-slate-300"><p className="text-xs uppercase tracking-[0.2em] text-slate-400">Answer</p><p className="mt-2">{selectedCard.back}</p></div> : <button type="button" onClick={() => setShowPracticeAnswer(true)} className="rounded-xl border border-emerald-400/50 px-4 py-3 text-sm text-emerald-200">Reveal answer</button>}
                       <div className="flex flex-wrap gap-2">
                         {[1, 2, 3, 4, 5].map((value) => (
                           <button
@@ -633,7 +652,7 @@ export default function HomePage() {
                 </div>
 
                 <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-                  <h2 className="text-xl font-semibold">Study schedule</h2>
+                  <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-semibold">Study schedule</h2><button type="button" onClick={regenerateSchedule} className="rounded-lg border border-slate-700 px-2 py-1 text-xs uppercase hover:border-cyan-400">Regenerate schedule</button></div>
                   <div className="mt-4 space-y-3">
                     {selectedKit.kit.schedule.days.map((day) => (
                       <div key={day.day} className="rounded-xl border border-slate-800 bg-slate-950 p-4">

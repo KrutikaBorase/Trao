@@ -8,7 +8,7 @@ It now includes a stronger research layer, explicit builder-state handling, a co
 ## Tech stack
 - Frontend: Next.js 14 + Tailwind CSS
 - Backend: Node.js + Express
-- Storage: in-memory session/demo persistence for this assessment build
+- Storage: MongoDB when `MONGODB_URI` is configured, local JSON fallback for clean-clone development
 - Validation: custom JavaScript validation functions
 - Batch entry point: `npm run evaluate -- --input <cases.json> --output <kits.json>`
 
@@ -19,9 +19,18 @@ This stack keeps the project simple and easy to run from a clean clone while sta
    npm install
 2. Create your environment file from the example:
    cp .env.example .env
-3. Start the app:
-   npm run dev
+3. Start the app. For the most reliable local workflow, use two terminals:
+   - Terminal 1: `npm run dev:backend`
+   - Terminal 2: `npm run dev:frontend`
+   - Or use `npm run dev`, which stops both processes together if either fails.
 4. Open the frontend at http://localhost:3000 and the backend API at http://localhost:3001.
+
+Environment variables:
+- `GEMINI_API_KEY`: server-only Gemini key; never use a `NEXT_PUBLIC_` name.
+- `GEMINI_MODEL`: defaults to `gemini-2.5-flash`.
+- `SESSION_SECRET`: signing secret, required in production.
+- `FRONTEND_ORIGIN`: comma-separated allowed frontend origins for credentialed CORS.
+- `MONGODB_URI` and `MONGODB_DB`: optional durable production persistence. Without them, local JSON files in `data/` are used.
 
 ## Batch mode
 Run the full pipeline for a batch of cases:
@@ -61,14 +70,14 @@ The app does not hard-code a fixed list of paths; rather it ranks links by signa
 The production pipeline is intentionally sequential:
 1. Extract requirements from the job description.
 2. Build a company brief from the company URL and available public signals.
-3. Generate question drafts grouped by requirement, category, and difficulty.
+3. Generate separate technical, behavioural, and company-fit question drafts. Gemini uses one validated request per category; the deterministic fallback mirrors the same categories when the provider is unavailable.
 4. Check the generated questions against the extracted requirements and find uncovered must-haves.
 5. Run a second pass to fill gaps and validate coverage again.
 6. Generate flashcards from the final set of questions.
 7. Allocate the study schedule using arithmetic across the selected number of days.
 8. Validate the whole kit before returning it.
 
-This keeps model output constrained and ensures we do not rely on a single giant prompt.
+This keeps model output constrained and ensures the category prompts respond to the research and requirements rather than relying on a single giant prompt.
 
 ## State handling (generated vs edited vs pinned)
 The assessment’s hardest state problem is preserved by separating generation state from user edits. In this implementation, question and flashcard objects are treated as generated items with stable ids, while user edits are reflected by editing the object in-place. Regeneration works by replacing only the generated slice for that section and leaving untouched items as-is, which preserves custom edits unless the user explicitly re-generates the same question or category.
@@ -81,14 +90,14 @@ The interface supports inline edits, add/delete/reorder actions, pinning, and an
 The app includes a confidence-driven practice queue that reorders flashcards based on lower confidence scores so users work on the weakest material first. Each card lets the user rate their confidence out of five and the queue continues with the next most uncertain item.
 
 ## Secure sessions and persistence
-Authentication is now protected with signed session tokens instead of unserialised base64 identifiers. Each cookie is created with a server secret, verified on every API request, and persisted in the local `data/` directory for the assessment build.
+Authentication is now protected with signed session tokens instead of unserialised base64 identifiers. Each cookie is created with a server secret and verified on every API request. Passwords are bcrypt-hashed. When `MONGODB_URI` is configured, users and kits are stored in MongoDB; otherwise the local `data/` JSON adapter keeps a clean clone self-contained.
 
 This keeps demo login and kit storage stable without exposing the session as a trivially forgeable token.
 
 ## Deployment and public hosting
 The repo now includes deployment configuration for the two common hosting patterns:
 
-- Render: `render.yaml` runs the backend and web app as separate services.
+- Render: `render.yaml` runs the backend and web app as separate services. Set `MONGODB_URI` there for durable storage; Render's local filesystem is not durable across restarts.
 - Vercel: `vercel.json` remains as the front-end config for a Next.js deployment.
 
 For public hosting, pick Render if you want both the API and frontend managed in one place. The production environment should set:
@@ -96,8 +105,11 @@ For public hosting, pick Render if you want both the API and frontend managed in
 - `NODE_ENV=production`
 - `SESSION_SECRET=<long random secret>`
 - `NEXT_PUBLIC_API_URL=https://<your-api-host>`
+- `FRONTEND_ORIGIN=https://<your-web-host>`
+- `MONGODB_URI=<managed MongoDB connection string>`
+- `MONGODB_DB=interview_prep`
 
-Then deploy the backend and frontend services and confirm that the UI can reach the production API and log in successfully.
+Then deploy the backend and frontend services and confirm that the UI can reach the production API and log in successfully. The repository contains the application and deployment configuration, but the final public URL requires connecting the repository to a hosting account.
 
 ## Schedule allocation
 The schedule is arithmetic rather than prompt-based. The allocator:
@@ -132,4 +144,17 @@ Run the automated checks with:
 
 npm test
 
-The tests cover schedule allocation, coverage-checking, and kit structure validation.
+The tests cover schedule allocation, coverage-checking, strict kit structure validation, unseen-posting extraction, practice ordering, session signing, and an API authentication smoke test.
+
+## Walkthrough checklist
+For the required 3–4 minute walkthrough, show:
+1. Paste a job description, enter a company URL, and choose the interview days.
+2. Show the research, category generation, coverage pass, and schedule result.
+3. Edit and reorder a question, pin it, save, and regenerate its category without losing the edit.
+4. Add or delete a flashcard, then use Practice mode to reveal and rate confidence.
+5. Upload a JSON or CSV batch and show per-case progress.
+
+## Known limitations
+- Gemini requests are rate-limited and have a bounded timeout; the deterministic generator keeps the batch contract available during provider failure.
+- External interview discussion search uses a bounded public DuckDuckGo HTML result lookup and records links as optional evidence.
+- The local JSON adapter is intentionally for development; configure MongoDB for a durable deployment.
