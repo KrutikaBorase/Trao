@@ -69,7 +69,15 @@ export default function HomePage() {
   async function readResponse(response, fallbackMessage) {
     const contentType = response.headers.get('content-type') || '';
     const data = contentType.includes('application/json') ? await response.json() : {};
-    if (!response.ok) throw new Error(data.message || fallbackMessage);
+    if (!response.ok) {
+      if (response.status === 401) {
+        setUser(null);
+        setKits([]);
+        setSelectedKitId('');
+        throw new Error('Your session expired. Please log in again.');
+      }
+      throw new Error(data.message || fallbackMessage);
+    }
     return data;
   }
 

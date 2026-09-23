@@ -62,7 +62,11 @@ function getUserFromRequest(req) {
 }
 
 const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:3000').split(',').map((origin) => origin.trim());
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  return allowedOrigins.includes(origin) || (process.env.NODE_ENV === 'production' && /^https:\/\/ai-interview-prep-web-[a-z0-9]+\.onrender\.com$/i.test(origin));
+}
+app.use(cors({ origin: (origin, callback) => callback(null, isAllowedOrigin(origin) ? origin : false), credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 
