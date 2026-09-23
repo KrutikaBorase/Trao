@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { buildPracticeQueue, reorderQuestions } from '../lib/builder.js';
 import { allocateSchedule } from '../lib/schedule.js';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const configuredApi = process.env.NEXT_PUBLIC_API_URL;
+const API = typeof window !== 'undefined' && window.location.hostname.startsWith('ai-interview-prep-web-')
+  ? `https://${window.location.hostname.replace('ai-interview-prep-web-', 'ai-interview-prep-api-')}`
+  : configuredApi || 'http://localhost:3001';
 const demoForm = {
   jd: 'Senior Backend Engineer\n\nWe are looking for 5+ years of React, strong distributed systems experience, mentoring junior engineers, and shipping APIs that scale.',
   company_url: 'https://example.com',

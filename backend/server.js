@@ -42,7 +42,7 @@ async function hydrateStores() {
 function getCookieOptions() {
   return {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     secure: process.env.NODE_ENV === 'production',
     maxAge: 1000 * 60 * 60 * 8,
   };
@@ -130,7 +130,8 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/auth/logout', (req, res) => {
-  res.clearCookie('session', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
+  const { maxAge, ...clearCookieOptions } = getCookieOptions();
+  res.clearCookie('session', clearCookieOptions);
   return res.status(200).json({ ok: true });
 });
 
