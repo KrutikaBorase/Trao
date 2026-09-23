@@ -99,7 +99,7 @@ This keeps demo login and kit storage stable without exposing the session as a t
 ## Deployment and public hosting
 The repo now includes deployment configuration for the two common hosting patterns:
 
-- Render: `render.yaml` runs the backend and web app as separate services. Set `MONGODB_URI` there for durable storage; Render's local filesystem is not durable across restarts.
+- Render: `render.yaml` runs the backend and web app as separate services. Replace the example service URLs with the actual URLs assigned by Render, then set `MONGODB_URI` there for durable storage; Render's local filesystem is not durable across restarts.
 - Vercel: `vercel.json` remains as the front-end config for a Next.js deployment.
 
 For public hosting, pick Render if you want both the API and frontend managed in one place. The production environment should set:

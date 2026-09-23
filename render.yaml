@@ -17,13 +17,13 @@ services:
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
       - key: FRONTEND_ORIGIN
-        value: https://ai-interview-prep-web.onrender.com
+        value: https://ai-interview-prep-web-160r.onrender.com
       - key: MONGODB_URI
         sync: false
       - key: MONGODB_DB
         value: interview_prep
       - key: NEXT_PUBLIC_API_URL
-        value: https://ai-interview-prep-api.onrender.com
+        value: https://ai-interview-prep-api-160r.onrender.com
 
   - type: web
     name: ai-interview-prep-web
@@ -37,6 +37,6 @@ services:
       - key: PORT
         value: 10000
       - key: NEXT_PUBLIC_API_URL
-        value: https://ai-interview-prep-api.onrender.com
+        value: https://ai-interview-prep-api-160r.onrender.com
       - key: SESSION_SECRET
         value: replace-with-a-long-random-string
