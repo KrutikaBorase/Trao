@@ -5,6 +5,7 @@ import { findUncoveredRequirements, validateKitStructure } from '../lib/validate
 import { buildPracticeQueue, reorderQuestions, updateQuestionState } from '../lib/builder.js';
 import { createSessionToken, verifySessionToken } from '../lib/session.js';
 import { extractRequirementsFromJD } from '../backend/pipeline.js';
+import { generateQuestionsWithGemini } from '../backend/llm.js';
 
 const requirements = [
   { id: 'r1', text: '5+ years of React', priority: 'must', kind: 'technical' },
@@ -102,4 +103,27 @@ test('extractRequirementsFromJD stays honest for a thin description', () => {
   assert.equal(extracted.length, 1);
   assert.equal(extracted[0].priority, 'nice');
   assert.match(extracted[0].text, /No concrete requirements/i);
+});
+
+test('Gemini adapter validates separate category responses and retries provider throttling', async () => {
+  const previousKey = process.env.GEMINI_API_KEY;
+  const previousFetch = global.fetch;
+  process.env.GEMINI_API_KEY = 'test-key';
+  let calls = 0;
+  global.fetch = async () => {
+    calls += 1;
+    if (calls === 1) return new Response('', { status: 429 });
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify([{ prompt: 'Question', answer_outline: 'Answer', requirement_ids: ['r1'], difficulty: 2 }]) }] } }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+
+  try {
+    const questions = await generateQuestionsWithGemini([{ id: 'r1', text: 'Build APIs', kind: 'technical', priority: 'must' }], { summary: 'Public research' });
+    assert.equal(questions.length, 3);
+    assert.deepEqual(new Set(questions.map((question) => question.category)), new Set(['technical', 'behavioural', 'company-fit']));
+    assert.ok(calls >= 4);
+  } finally {
+    global.fetch = previousFetch;
+    if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousKey;
+  }
 });

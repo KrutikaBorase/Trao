@@ -32,12 +32,17 @@ async function generateCategory(category, requirements, companyBrief) {
     `Public company research: ${JSON.stringify(companyBrief)}`,
   ].join('\n');
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-    signal: AbortSignal.timeout(60_000),
-  });
+  let response;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (response.ok || ![429, 500, 502, 503, 504].includes(response.status) || attempt === 2) break;
+    await new Promise((resolve) => setTimeout(resolve, 500 * (2 ** attempt)));
+  }
   if (!response.ok) throw new Error(`Gemini ${category} request failed with status ${response.status}`);
   const body = await response.json();
   const text = body.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';

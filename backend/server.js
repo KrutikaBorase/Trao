@@ -4,6 +4,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import bcrypt from 'bcryptjs';
 import { buildKitFromCase } from './pipeline.js';
+import { researchCompany } from './research.js';
 import { createSessionToken, verifySessionToken } from '../lib/session.js';
 import { validateKitStructure } from '../lib/validate.js';
 import { loadStores, saveKits, saveUsers } from './store.js';
@@ -160,8 +161,44 @@ app.patch('/api/kits/:kitId', async (req, res) => {
   const nextKits = [...userKits];
   nextKits[kitIndex] = { ...nextKits[kitIndex], kit };
   kitsByUser.set(user.id, nextKits);
-  await saveKits();
+  await saveKits(kitsByUser);
   return res.json({ id: req.params.kitId, kit });
+});
+
+app.post('/api/kits/:kitId/regenerate', async (req, res) => {
+  const user = getUserFromRequest(req);
+  if (!user) return res.status(401).json({ message: 'Authentication required.' });
+
+  const section = req.body?.section;
+  const userKits = kitsByUser.get(user.id) || [];
+  const kitIndex = userKits.findIndex((entry) => entry.id === req.params.kitId);
+  if (kitIndex < 0) return res.status(404).json({ message: 'Kit not found.' });
+  if (section !== 'company-brief') return res.status(400).json({ message: 'Only company-brief regeneration is handled by this endpoint.' });
+
+  const current = userKits[kitIndex].kit;
+  const research = await researchCompany(current.source.company_url);
+  const nextKit = {
+    ...current,
+    source: { ...current.source, researched_at: new Date().toISOString(), pages_used: research.sources.length ? research.sources : current.source.pages_used },
+    company_brief: {
+      ...current.company_brief,
+      summary: research.summary,
+      what_they_do: research.what_they_do,
+      sources: research.sources.length ? research.sources : current.company_brief.sources,
+      interview_process_sources: research.discussionSources || [],
+      retrieval_failures: research.retrievalFailures || [],
+    },
+  };
+  try {
+    validateKitStructure(nextKit);
+  } catch (error) {
+    return res.status(422).json({ message: error.message || 'Regenerated brief made the kit invalid.' });
+  }
+  const nextKits = [...userKits];
+  nextKits[kitIndex] = { ...nextKits[kitIndex], kit: nextKit };
+  kitsByUser.set(user.id, nextKits);
+  await saveKits(kitsByUser);
+  return res.json({ id: req.params.kitId, kit: nextKit });
 });
 
 app.post('/api/kits/generate', async (req, res) => {
@@ -180,7 +217,7 @@ app.post('/api/kits/generate', async (req, res) => {
     const userKits = kitsByUser.get(user.id) || [];
     const nextList = [...userKits.filter((entry) => entry.id !== result.id), { id: result.id, kit: result.kit, status: result.status, error: result.error }];
     kitsByUser.set(user.id, nextList);
-    await saveKits();
+    await saveKits(kitsByUser);
 
     return res.json({ id: result.id, status: result.status, kit: result.kit, error: result.error });
   } catch (error) {

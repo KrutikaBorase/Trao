@@ -110,6 +110,7 @@ async function buildCompanyBrief(companyUrl) {
     what_they_do: research.what_they_do,
     sources: research.sources.length ? research.sources : companyUrl ? [companyUrl] : [],
     interview_process_sources: research.discussionSources || [],
+    retrieval_failures: research.retrievalFailures || [],
   };
 }
 

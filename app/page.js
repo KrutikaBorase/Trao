@@ -188,6 +188,24 @@ export default function HomePage() {
     }
   }
 
+  async function regenerateCompanyBrief() {
+    if (!selectedKit?.kit) return;
+    setSaving(true);
+    setError('');
+    try {
+      const response = await fetch(`${API}/api/kits/${selectedKit.id}/regenerate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ section: 'company-brief' }),
+      });
+      const data = await readResponse(response, 'Could not regenerate company brief');
+      setKits((current) => current.map((entry) => entry.id === data.id ? { ...entry, kit: data.kit } : entry));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function updateQuestion(questionId, field, value) {
     if (!selectedKit?.kit) return;
     setKits((current) =>
@@ -497,9 +515,7 @@ export default function HomePage() {
                       <p className="text-xs uppercase tracking-[0.25em] text-cyan-300">Company brief</p>
                       <h2 className="mt-2 text-2xl font-bold">{selectedKit.kit.source.company}</h2>
                     </div>
-                    <a href={selectedKit.kit.source.company_url} target="_blank" rel="noreferrer" className="rounded-xl border border-slate-700 px-4 py-2 text-sm hover:border-cyan-400">
-                      Open company URL
-                    </a>
+                    <div className="flex gap-2"><button type="button" onClick={regenerateCompanyBrief} className="rounded-xl border border-slate-700 px-4 py-2 text-sm hover:border-cyan-400">Regenerate brief</button><a href={selectedKit.kit.source.company_url} target="_blank" rel="noreferrer" className="rounded-xl border border-slate-700 px-4 py-2 text-sm hover:border-cyan-400">Open company URL</a></div>
                   </div>
                   <textarea value={selectedKit.kit.company_brief.summary} onChange={(event) => updateCompanyBrief('summary', event.target.value)} rows={3} className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-300" />
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -626,6 +642,11 @@ export default function HomePage() {
                     >
                       Reset queue
                     </button>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs uppercase tracking-[0.15em]">
+                    <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><strong className="block text-lg text-emerald-200">{Object.keys(confidenceMap).length}</strong>Covered</div>
+                    <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><strong className="block text-lg text-coral-200">{Math.max(0, practiceCards.length - Object.keys(confidenceMap).length)}</strong>Uncovered</div>
+                    <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><strong className="block text-lg text-slate-100">{practiceCards.length}</strong>Total</div>
                   </div>
 
                   {selectedCard ? (

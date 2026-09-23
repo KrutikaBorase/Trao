@@ -72,6 +72,7 @@ export async function researchCompany(companyUrl) {
   const fetchedAt = new Map();
   let robotsRules = [];
   const discussionSources = [];
+  const retrievalFailures = [];
 
   function maybeAddSignal(text) {
     if (!text) return;
@@ -98,7 +99,10 @@ export async function researchCompany(companyUrl) {
 
   async function fetchPage(url, attempt = 0) {
     if (!isSafeUrl(url) || seen.has(url)) return null;
-    if (!allowedByRobots(url)) return null;
+    if (!allowedByRobots(url)) {
+      retrievalFailures.push({ url, code: 'ROBOTS_DISALLOWED', message: 'Blocked by robots.txt.' });
+      return null;
+    }
     seen.add(url);
 
     try {
@@ -109,14 +113,24 @@ export async function researchCompany(companyUrl) {
         await new Promise((resolve) => setTimeout(resolve, 300 * (2 ** attempt)));
         return fetchPage(url, attempt + 1);
       }
-      if (!response.ok) return null;
+      if (!response.ok) {
+        retrievalFailures.push({ url, code: 'HTTP_ERROR', message: `Source returned HTTP ${response.status}.` });
+        return null;
+      }
       const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) return null;
+      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
+        retrievalFailures.push({ url, code: 'UNSUPPORTED_CONTENT', message: 'Source was not HTML.' });
+        return null;
+      }
       const html = await response.text();
-      if (html.length > 200000) return null;
+      if (html.length > 200000) {
+        retrievalFailures.push({ url, code: 'SOURCE_TOO_LARGE', message: 'Source exceeded the 200 KB limit.' });
+        return null;
+      }
       sources.push(url);
       return html;
-    } catch {
+    } catch (error) {
+      if (attempt >= 2) retrievalFailures.push({ url, code: 'FETCH_FAILED', message: error.name === 'TimeoutError' ? 'Source timed out after retries.' : 'Source could not be retrieved after retries.' });
       return null;
     }
   }
@@ -137,6 +151,7 @@ export async function researchCompany(companyUrl) {
         if (href && /^https?:/i.test(href)) discussionSources.push(href);
       });
     } catch {
+      retrievalFailures.push({ url: 'https://html.duckduckgo.com/html/', code: 'DISCUSSION_SEARCH_FAILED', message: 'Public interview discussion search was unavailable.' });
       // External discussion is optional evidence; the company crawl remains useful.
     }
   }
@@ -216,5 +231,6 @@ export async function researchCompany(companyUrl) {
     sources: [...new Set(sources.concat(hiringSignals, discussionSources))].slice(0, 8),
     hiringSignals,
     discussionSources,
+    retrievalFailures: retrievalFailures.slice(0, 20),
   };
 }
