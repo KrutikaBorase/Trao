@@ -8,13 +8,22 @@ const KITS_FILE = path.join(DATA_DIR, 'kits.json');
 
 let client;
 let database;
+let mongoUnavailable = false;
 
 async function getMongoDatabase() {
-  if (!process.env.MONGODB_URI) return null;
+  if (!process.env.MONGODB_URI || mongoUnavailable) return null;
   if (!database) {
-    client = new MongoClient(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 });
-    await client.connect();
-    database = client.db(process.env.MONGODB_DB || 'interview_prep');
+    try {
+      client = new MongoClient(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 });
+      await client.connect();
+      database = client.db(process.env.MONGODB_DB || 'interview_prep');
+    } catch (error) {
+      mongoUnavailable = true;
+      console.warn(`MongoDB unavailable; using local persistence fallback: ${error.message}`);
+      await client?.close().catch(() => {});
+      client = undefined;
+      database = undefined;
+    }
   }
   return database;
 }
@@ -32,9 +41,14 @@ async function readJson(filePath, fallback) {
 export async function loadStores() {
   const db = await getMongoDatabase();
   if (db) {
-    const users = Object.fromEntries((await db.collection('users').find({}).toArray()).map(({ _id, ...user }) => [_id, user]));
-    const kits = Object.fromEntries((await db.collection('kits').find({}).toArray()).map(({ _id, ...entry }) => [_id, entry.items]));
-    return { users: new Map(Object.entries(users)), kitsByUser: new Map(Object.entries(kits)), durable: true };
+    try {
+      const users = Object.fromEntries((await db.collection('users').find({}).toArray()).map(({ _id, ...user }) => [_id, user]));
+      const kits = Object.fromEntries((await db.collection('kits').find({}).toArray()).map(({ _id, ...entry }) => [_id, entry.items]));
+      return { users: new Map(Object.entries(users)), kitsByUser: new Map(Object.entries(kits)), durable: true };
+    } catch (error) {
+      mongoUnavailable = true;
+      console.warn(`MongoDB read failed; using local persistence fallback: ${error.message}`);
+    }
   }
 
   return {

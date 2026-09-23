@@ -32,6 +32,8 @@ Environment variables:
 - `FRONTEND_ORIGIN`: comma-separated allowed frontend origins for credentialed CORS.
 - `MONGODB_URI` and `MONGODB_DB`: optional durable production persistence. Without them, local JSON files in `data/` are used.
 
+For MongoDB Atlas, add the deployed Render service to the Atlas Network Access allowlist. For a free-tier demo, `0.0.0.0/0` is the simplest option; restrict it further for production. If MongoDB is temporarily unavailable, the backend logs the failure and starts with the local fallback instead of crashing.
+
 ## Batch mode
 Run the full pipeline for a batch of cases:
 
